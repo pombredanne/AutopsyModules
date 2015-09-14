@@ -96,7 +96,6 @@ class LowHangingFruit(FileIngestModule):
         noDupes = list(set(md5))
         try:
             if(filename):
-                #unique = []
                 
                 uniquePath = os.path.join(Case.getCurrentCase().getCaseDirectory(), "NewLowHangingFruit.txt")
                 uniqueFile = open(uniquePath,'w')
@@ -110,13 +109,6 @@ class LowHangingFruit(FileIngestModule):
                         temp = "Future Improvement"
                     else:
                         uniqueFile.write(line+'\n')
-                        #unique.append(line)
-                    
-                #for line in unique:
-                #    uniqueFile.write(line+'\n')
-
-                #for line in unique:
-                #    stmt.executeQuery("INSERT INTO MD5(md5) VALUES(%s)" % line)
 
                 stmt.close()
                 dbConn.close()
