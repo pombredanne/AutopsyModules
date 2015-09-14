@@ -1,7 +1,10 @@
+import os
 import jarray
 import inspect
 from java.lang import System
+from java.sql  import DriverManager, SQLException
 from java.util.logging import Level
+from java.io import File
 from java.awt import BorderLayout
 from javax.swing import BorderFactory
 from javax.swing import JTextArea
@@ -27,13 +30,17 @@ from org.sleuthkit.autopsy.ingest import IngestModuleIngestJobSettings
 from org.sleuthkit.autopsy.ingest import IngestModuleIngestJobSettingsPanel
 from org.sleuthkit.autopsy.ingest import IngestServices
 from org.sleuthkit.autopsy.ingest import IngestModuleGlobalSettingsPanel
+from org.sleuthkit.datamodel import SleuthkitCase
+from org.sleuthkit.datamodel import AbstractFile
 from org.sleuthkit.datamodel import BlackboardArtifact
 from org.sleuthkit.datamodel import BlackboardAttribute
 from org.sleuthkit.datamodel import ReadContentInputStream
 from org.sleuthkit.autopsy.coreutils import Logger
 from java.lang import IllegalArgumentException
-
-import os
+from org.sleuthkit.autopsy.ingest import DataSourceIngestModule
+from org.sleuthkit.autopsy.ingest import ModuleDataEvent
+from org.sleuthkit.autopsy.casemodule.services import FileManager
+from org.sleuthkit.autopsy.datamodel import ContentUtils
 
 class LowHangingFruitFactory(IngestModuleFactoryAdapter):
     
@@ -46,7 +53,7 @@ class LowHangingFruitFactory(IngestModuleFactoryAdapter):
         return self.moduleName
 
     def getModuleDescription(self):
-        return "Unique hashes not previously seen to run against external sources"
+        return "Unique New Hashes"
 
     def getModuleVersionNumber(self):
         return "1.0"
@@ -73,26 +80,53 @@ class LowHangingFruit(FileIngestModule):
 
     def __init__(self, settings):
         self.local_settings = settings
-
+        
     def startUp(self, context):
         global md5
         md5 = []
 
     def process(self, file):
-        
         if(file.getMd5Hash()):
-            if (str(file.getKnown()) != "KNOWN"):
+            if (str(file.getKnown()) != "KNOWN"):              
                 md5.append(file.getMd5Hash())
             
         return IngestModule.ProcessResult.OK
 
     def shutDown(self):
         noDupes = list(set(md5))
-        outPath = os.path.join(Case.getCurrentCase().getCaseDirectory(), "LowHangingFruit.txt")
-        outFile = open(outPath,'w')
-        for line in noDupes:
-            outFile.write(line+'\n')
-        outFile.close()
+        try:
+            if(filename):
+                #unique = []
+                
+                uniquePath = os.path.join(Case.getCurrentCase().getCaseDirectory(), "NewLowHangingFruit.txt")
+                uniqueFile = open(uniquePath,'w')
+                
+                dbConn = DriverManager.getConnection("jdbc:sqlite:%s"  % filename)
+                stmt = dbConn.createStatement()
+
+                for line in noDupes:
+                    resultSet = stmt.executeQuery("SELECT * FROM MD5 where md5 == '%s'" % line)
+                    if(resultSet.next()):
+                        temp = "Future Improvement"
+                    else:
+                        uniqueFile.write(line+'\n')
+                        #unique.append(line)
+                    
+                #for line in unique:
+                #    uniqueFile.write(line+'\n')
+
+                #for line in unique:
+                #    stmt.executeQuery("INSERT INTO MD5(md5) VALUES(%s)" % line)
+
+                stmt.close()
+                dbConn.close()
+                uniqueFile.close()
+        except:
+            allPath = os.path.join(Case.getCurrentCase().getCaseDirectory(), "AllLowHangingFruit.txt")
+            allFile = open(allPath,'w')
+            for line in noDupes:    
+                allFile.write(line+'\n')           
+            allFile.close()
 
 class LowHangingFruitUISettingsPanel(IngestModuleIngestJobSettingsPanel):
     
@@ -127,7 +161,7 @@ class LowHangingFruitUISettingsPanel(IngestModuleIngestJobSettingsPanel):
         filter = FileNameExtensionFilter("SQLite", ["sqlite"])
         chooseFile.addChoosableFileFilter(filter)
 
-        ret = chooseFile.showDialog(self.panel, "Select SQLite Database")
+        ret = chooseFile.showDialog(self.panel, "Select SQLite")
 
         if ret == JFileChooser.APPROVE_OPTION:
             file = chooseFile.getSelectedFile()
@@ -135,6 +169,7 @@ class LowHangingFruitUISettingsPanel(IngestModuleIngestJobSettingsPanel):
             self.area.setText(text)
 
     def readPath(self, file):
+        global filename
         filename = file.getCanonicalPath()
         return filename
 
