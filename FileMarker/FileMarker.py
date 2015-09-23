@@ -23,7 +23,7 @@ from org.sleuthkit.autopsy.casemodule.services import FileManager
 
 class FileMarkerIngestModuleFactory(IngestModuleFactoryAdapter):
 
-    moduleName = "FileMarker"
+    moduleName = "File Marker"
 
     def getModuleDisplayName(self):
         return self.moduleName
