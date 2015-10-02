@@ -1,9 +1,9 @@
 import jarray
 import inspect
 from java.lang import System
-from java.sql  import DriverManager, SQLException
-from java.util.logging import Level
 from java.io import File
+from java.util.logging import Level
+from java.sql  import DriverManager, SQLException
 from java.awt import BorderLayout
 from javax.swing import BorderFactory
 from javax.swing import JTextArea
@@ -17,102 +17,114 @@ from javax.swing import JTextField
 from javax.swing import JLabel
 from javax.swing import JFileChooser
 from javax.swing.filechooser import FileNameExtensionFilter
-from org.sleuthkit.autopsy.casemodule import Case
-from org.sleuthkit.autopsy.casemodule.services import Services
-from org.sleuthkit.autopsy.ingest import DataSourceIngestModule
-from org.sleuthkit.autopsy.ingest import FileIngestModule
-from org.sleuthkit.autopsy.ingest import IngestMessage
+from org.sleuthkit.datamodel import SleuthkitCase
+from org.sleuthkit.datamodel import AbstractFile
+from org.sleuthkit.datamodel import ReadContentInputStream
+from org.sleuthkit.datamodel import BlackboardArtifact
+from org.sleuthkit.datamodel import BlackboardAttribute
+from org.sleuthkit.datamodel import ReadContentInputStream
+from org.sleuthkit.datamodel import TskData
 from org.sleuthkit.autopsy.ingest import IngestModule
 from org.sleuthkit.autopsy.ingest.IngestModule import IngestModuleException
-from org.sleuthkit.autopsy.ingest import IngestModuleFactoryAdapter
 from org.sleuthkit.autopsy.ingest import IngestModuleIngestJobSettings
 from org.sleuthkit.autopsy.ingest import IngestModuleIngestJobSettingsPanel
 from org.sleuthkit.autopsy.ingest import IngestServices
 from org.sleuthkit.autopsy.ingest import IngestModuleGlobalSettingsPanel
-from org.sleuthkit.datamodel import SleuthkitCase
-from org.sleuthkit.datamodel import AbstractFile
-from org.sleuthkit.datamodel import BlackboardArtifact
-from org.sleuthkit.datamodel import BlackboardAttribute
-from org.sleuthkit.datamodel import ReadContentInputStream
+from org.sleuthkit.autopsy.ingest import DataSourceIngestModule
+from org.sleuthkit.autopsy.ingest import FileIngestModule
+from org.sleuthkit.autopsy.ingest import IngestModuleFactoryAdapter
+from org.sleuthkit.autopsy.ingest import IngestMessage
+from org.sleuthkit.autopsy.ingest import IngestServices
+from org.sleuthkit.autopsy.ingest import ModuleDataEvent
 from org.sleuthkit.autopsy.coreutils import Logger
+from org.sleuthkit.autopsy.casemodule import Case
+from org.sleuthkit.autopsy.casemodule.services import Services
+from org.sleuthkit.autopsy.casemodule.services import FileManager
 from java.lang import IllegalArgumentException
 from org.sleuthkit.autopsy.ingest import DataSourceIngestModule
 from org.sleuthkit.autopsy.ingest import ModuleDataEvent
 from org.sleuthkit.autopsy.casemodule.services import FileManager
 from org.sleuthkit.autopsy.datamodel import ContentUtils
 
-class BuildMetaInfoFactory(IngestModuleFactoryAdapter):
-    
+class MatchMetaInfoIngestModuleFactory(IngestModuleFactoryAdapter):
+
     def __init__(self):
         self.settings = None
 
-    moduleName = "BuildMeta.Info"
+    moduleName = "MatchMeta.Info"
 
     def getModuleDisplayName(self):
         return self.moduleName
 
     def getModuleDescription(self):
-        return "Build Meta Information"
+        return "Match Meta Information"
 
     def getModuleVersionNumber(self):
         return "1.0"
-
+    
     def hasIngestJobSettingsPanel(self):
         return True
 
     def getIngestJobSettingsPanel(self, settings):
         self.settings = settings
-        return BuildMetaInfoUISettingsPanel(self.settings)
-
+        return MatchMetaInfoUISettingsPanel(self.settings)
+    
     def isFileIngestModuleFactory(self):
         return True
 
     def createFileIngestModule(self, ingestOptions):
-        return BuildMetaInfo(self.settings)
+        return MatchMetaInfoIngestModule(self.settings)
 
-class BuildMetaInfo(FileIngestModule):
+class MatchMetaInfoIngestModule(FileIngestModule):
 
-    _logger = Logger.getLogger(BuildMetaInfoFactory.moduleName)
+    _logger = Logger.getLogger(MatchMetaInfoIngestModuleFactory.moduleName)
 
     def log(self, level, msg):
         self._logger.logp(level, self.__class__.__name__, inspect.stack()[1][3], msg)
 
     def __init__(self, settings):
         self.local_settings = settings
-        
-    def startUp(self, context):
-        try:
-            if(filename):
-                global dbConn
-                global stmt
-                dbConn = DriverManager.getConnection("jdbc:sqlite:%s"  % filename)
-                stmt = dbConn.createStatement()
-        except:
-            pass
 
+    def startUp(self, context):
+        pass
 
     def process(self, file):
         try:
-            
-            path = file.getParentPath()+file.getName()
-            count = len(file.getNameExtension()) + 1
-            full = file.getName()[:-count]
+            if(filename):
+                
+                dbConn = DriverManager.getConnection("jdbc:sqlite:%s"  % filename)
+                stmt = dbConn.createStatement()
 
-            stmt.executeQuery("INSERT INTO META VALUES('%s','%s','%s','%s','%s')" % (path,file.getParentPath(),file.getName(),full,file.getNameExtension()))
+                path = file.getParentPath()+file.getName()
 
+                resultSet = stmt.executeQuery("SELECT * FROM META WHERE Path == '%s'" % path)
+                
+                if(resultSet.next()):
+                    temp = "Future Improvement"                
+                else:
+                    art = file.newArtifact(BlackboardArtifact.ARTIFACT_TYPE.TSK_INTERESTING_FILE_HIT)
+                    att = BlackboardAttribute(BlackboardAttribute.ATTRIBUTE_TYPE.TSK_SET_NAME.getTypeID(), 
+                        MatchMetaInfoIngestModuleFactory.moduleName, "Unknown Meta")
+                    art.addAttribute(att)
+  
+                    IngestServices.getInstance().fireModuleDataEvent(
+                        ModuleDataEvent(MatchMetaInfoIngestModuleFactory.moduleName, 
+                            BlackboardArtifact.ARTIFACT_TYPE.TSK_INTERESTING_FILE_HIT, None));
+
+                stmt.close()
+                dbConn.close()
+                
         except:
             pass
-            
+    
+
+
         return IngestModule.ProcessResult.OK
-
+ 
     def shutDown(self):
-        try:
-            stmt.close()
-            dbConn.close()
-        except:
-            pass
+        None
 
-class BuildMetaInfoUISettingsPanel(IngestModuleIngestJobSettingsPanel):
+class MatchMetaInfoUISettingsPanel(IngestModuleIngestJobSettingsPanel):
     
     def __init__(self, settings):
         self.local_settings = settings
