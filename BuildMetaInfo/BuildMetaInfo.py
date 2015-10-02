@@ -81,22 +81,24 @@ class BuildMetaInfo(FileIngestModule):
         self.local_settings = settings
         
     def startUp(self, context):
-        pass
+        try:
+            if(filename):
+                global dbConn
+                global stmt
+                dbConn = DriverManager.getConnection("jdbc:sqlite:%s"  % filename)
+                stmt = dbConn.createStatement()
+        except:
+            pass
+
 
     def process(self, file):
         try:
-            if(filename):
-                dbConn = DriverManager.getConnection("jdbc:sqlite:%s"  % filename)
-                stmt = dbConn.createStatement()
-                
-                path = file.getParentPath()+file.getName()
-                count = len(file.getNameExtension()) + 1
-                full = file.getName()[:-count]
+            
+            path = file.getParentPath()+file.getName()
+            count = len(file.getNameExtension()) + 1
+            full = file.getName()[:-count]
 
-                stmt.executeQuery("INSERT INTO META VALUES('%s','%s','%s','%s','%s')" % (path,file.getParentPath(),file.getName(),full,file.getNameExtension()))
-
-                stmt.close()
-                dbConn.close()
+            stmt.executeQuery("INSERT INTO META VALUES('%s','%s','%s','%s','%s')" % (path,file.getParentPath(),file.getName(),full,file.getNameExtension()))
 
         except:
             pass
@@ -104,7 +106,11 @@ class BuildMetaInfo(FileIngestModule):
         return IngestModule.ProcessResult.OK
 
     def shutDown(self):
-        None
+        try:
+            stmt.close()
+            dbConn.close()
+        except:
+            pass
 
 class BuildMetaInfoUISettingsPanel(IngestModuleIngestJobSettingsPanel):
     
